@@ -7,8 +7,7 @@ const jwt = require("jsonwebtoken");
 
 exports.signup = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
-    const normalizedRole = role ? role.toUpperCase() : undefined;
+    const { name, email, password } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -21,7 +20,7 @@ exports.signup = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: normalizedRole,
+      role: "USER", 
     });
 
     res.status(201).json({
@@ -34,7 +33,6 @@ exports.signup = async (req, res) => {
       },
     });
   } catch (error) {
-    console.log("Signup Error:", error.message);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -72,7 +70,6 @@ exports.login = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.log("Login Error:", error.message);
     res.status(500).json({ message: "Server error" });
   }
 };

@@ -7,7 +7,9 @@ require('./src/config/db');
 
 var indexRouter = require('./src/routes/index');
 const authRoutes = require("./src/routes/authRoutes");
+const userRoutes = require("./src/routes/userRoutes");
 const verifyToken = require("./src/middleware/authMiddleware");
+
 
 var app = express();
 
@@ -18,6 +20,8 @@ app.use(cookieParser());
 
 app.use('/', indexRouter);
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+
 
 // protected route
 app.get("/api/protected", verifyToken, (req, res) => {
