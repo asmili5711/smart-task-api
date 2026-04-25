@@ -8,6 +8,7 @@ require('./src/config/db');
 var indexRouter = require('./src/routes/index');
 const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
+const taskRoutes = require("./src/routes/taskRoutes");
 const verifyToken = require("./src/middleware/authMiddleware");
 
 
@@ -21,6 +22,7 @@ app.use(cookieParser());
 app.use('/', indexRouter);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/tasks", taskRoutes);
 
 
 // protected route
