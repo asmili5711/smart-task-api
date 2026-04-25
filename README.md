@@ -180,23 +180,29 @@ Deletes a user by MongoDB ObjectId. Admin only.
 
 ## Project Structure
 
+## Project Structure
+
 ```text
 src/
 ├── controllers/
 │   ├── authController.js
-│   └── userController.js
+│   ├── userController.js
+│   └── taskController.js
 ├── middleware/
 │   ├── authMiddleware.js
 │   ├── roleMiddleware.js
 │   └── validate.js
 ├── models/
-│   └── User.js
+│   ├── User.js
+│   └── Task.js
 ├── routes/
 │   ├── authRoutes.js
-│   └── userRoutes.js
+│   ├── userRoutes.js
+│   └── taskRoutes.js
 ├── validators/
-│   └── userValidation.js
-```
+│   ├── userValidation.js
+│   └── taskValidation.js
+
 
 ## Tech Stack
 
@@ -263,3 +269,55 @@ This API combines:
 - role-based authorization
 - profile management
 - admin user management
+
+
+
+
+## Task Management Module
+
+This module adds task handling to the Smart Task API. It supports creating, viewing, updating, assigning, and deleting tasks with role-based access control.
+
+### Features
+
+- Create task
+- View all tasks
+- View task by id
+- Update task
+- Assign task to a user
+- Delete task
+- Pagination for task list
+- Query validation for task list
+
+### Roles & Access
+
+- `ADMIN` can create, update, assign, view, and delete any task
+- `MANAGER` can create tasks, view tasks they created, update their own tasks, and assign their own tasks
+- `USER` can view assigned tasks and update task status if assigned
+
+### API Endpoints
+
+- `POST /api/tasks`
+- `GET /api/tasks`
+- `GET /api/tasks/:id`
+- `PATCH /api/tasks/:id`
+- `PATCH /api/tasks/:id/assign`
+- `DELETE /api/tasks/:id`
+
+### Validation
+
+- `title`, `priority`, `dueDate`, and `assignedTo` are validated
+- invalid task ids return `400`
+- invalid query params are rejected
+- unknown fields are stripped
+
+### Testing
+
+Tested manually using Postman for:
+- task creation
+- task listing
+- task details
+- task update
+- task assignment
+- task deletion
+- admin, manager, and user role restrictions
+
