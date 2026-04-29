@@ -4,6 +4,9 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 require('dotenv').config();
 require('./src/config/db');
+const { connectRedis } = require("./src/config/redis");
+connectRedis();
+
 
 var indexRouter = require('./src/routes/index');
 const authRoutes = require("./src/routes/authRoutes");

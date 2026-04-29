@@ -310,6 +310,38 @@ This module adds task handling to the Smart Task API. It supports creating, view
 - invalid query params are rejected
 - unknown fields are stripped
 
+### Redis Cache Setup
+
+Redis is used to cache the `GET /api/tasks` response so repeated task list requests can be served faster.
+
+Environment variables used:
+
+```env
+REDIS_URL=redis://localhost:6379
+CACHE_TTL_SECONDS=60
+```
+
+If you run the project through WSL, start Redis inside WSL before starting the Node app:
+
+```bash
+sudo service redis-server start
+redis-cli ping
+```
+
+If Redis is running correctly, `redis-cli ping` returns:
+
+```text
+PONG
+```
+
+How caching works:
+
+- `GET /api/tasks` first checks Redis for a cached response
+- if cache is found, the API returns the cached data
+- if cache is missing or expired, the API fetches data from MongoDB
+- the fresh response is saved in Redis for the number of seconds set in `CACHE_TTL_SECONDS`
+- task cache is cleared after create, update, assign, and delete operations so old task data is not served
+
 ### Testing
 
 Tested manually using Postman for:
