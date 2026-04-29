@@ -353,3 +353,43 @@ Tested manually using Postman for:
 - task deletion
 - admin, manager, and user role restrictions
 
+## Dashboard Stats Module
+
+This module adds a dashboard summary endpoint for admin users.
+
+### Features
+
+- View total users
+- View total admins
+- View total managers
+- View total normal users
+- View total tasks
+- View task counts by status
+- View task counts by priority
+
+### Roles & Access
+
+- `ADMIN` can access dashboard stats
+- `MANAGER` and `USER` cannot access dashboard stats
+
+### API Endpoint
+
+- `GET /api/dashboard/stats`
+
+### Response Summary
+
+The dashboard stats response includes:
+
+- user counts by role
+- task counts by status: `todo`, `in-progress`, `done`, `overdue`
+- task counts by priority: `low`, `medium`, `high`
+
+### Testing
+
+Tested manually using Postman for:
+
+- admin access to dashboard stats
+- unauthorized access without token
+- forbidden access for non-admin users
+- returned counts for users, task statuses, and task priorities
+
