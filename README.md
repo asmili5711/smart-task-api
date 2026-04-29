@@ -310,6 +310,38 @@ This module adds task handling to the Smart Task API. It supports creating, view
 - invalid query params are rejected
 - unknown fields are stripped
 
+### Redis Cache Setup
+
+Redis is used to cache the `GET /api/tasks` response so repeated task list requests can be served faster.
+
+Environment variables used:
+
+```env
+REDIS_URL=redis://localhost:6379
+CACHE_TTL_SECONDS=60
+```
+
+If you run the project through WSL, start Redis inside WSL before starting the Node app:
+
+```bash
+sudo service redis-server start
+redis-cli ping
+```
+
+If Redis is running correctly, `redis-cli ping` returns:
+
+```text
+PONG
+```
+
+How caching works:
+
+- `GET /api/tasks` first checks Redis for a cached response
+- if cache is found, the API returns the cached data
+- if cache is missing or expired, the API fetches data from MongoDB
+- the fresh response is saved in Redis for the number of seconds set in `CACHE_TTL_SECONDS`
+- task cache is cleared after create, update, assign, and delete operations so old task data is not served
+
 ### Testing
 
 Tested manually using Postman for:
@@ -320,4 +352,44 @@ Tested manually using Postman for:
 - task assignment
 - task deletion
 - admin, manager, and user role restrictions
+
+## Dashboard Stats Module
+
+This module adds a dashboard summary endpoint for admin users.
+
+### Features
+
+- View total users
+- View total admins
+- View total managers
+- View total normal users
+- View total tasks
+- View task counts by status
+- View task counts by priority
+
+### Roles & Access
+
+- `ADMIN` can access dashboard stats
+- `MANAGER` and `USER` cannot access dashboard stats
+
+### API Endpoint
+
+- `GET /api/dashboard/stats`
+
+### Response Summary
+
+The dashboard stats response includes:
+
+- user counts by role
+- task counts by status: `todo`, `in-progress`, `done`, `overdue`
+- task counts by priority: `low`, `medium`, `high`
+
+### Testing
+
+Tested manually using Postman for:
+
+- admin access to dashboard stats
+- unauthorized access without token
+- forbidden access for non-admin users
+- returned counts for users, task statuses, and task priorities
 

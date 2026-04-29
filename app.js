@@ -4,11 +4,15 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 require('dotenv').config();
 require('./src/config/db');
+const { connectRedis } = require("./src/config/redis");
+connectRedis();
+
 
 var indexRouter = require('./src/routes/index');
 const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
 const taskRoutes = require("./src/routes/taskRoutes");
+const dashboardRoutes = require("./src/routes/dashboardRoutes");
 const verifyToken = require("./src/middleware/authMiddleware");
 
 
@@ -23,6 +27,8 @@ app.use('/', indexRouter);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/tasks", taskRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+
 
 
 // protected route
