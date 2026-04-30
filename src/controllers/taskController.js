@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 const Task = require("../models/Task");
 const User = require("../models/User");
 const { redisClient } = require("../config/redis");
+const notificationQueue = require("../queues/notificationQueue");
+const aiQueue = require("../queues/aiQueue");
+
+
 
 const cacheTtlSeconds = Number(process.env.CACHE_TTL_SECONDS) || 60;
 
@@ -45,6 +49,52 @@ exports.createTask = async (req, res) => {
       createdBy: req.user.id,
     });
 
+    try {
+      await notificationQueue.add(
+        "task-created",
+        {
+          taskId: task._id.toString(),
+          title: task.title,
+          assignedTo,
+          createdBy: req.user.id,
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 2000,
+          },
+          removeOnComplete: true,
+          removeOnFail: false,
+        }
+      );
+    } catch (error) {
+      console.error("Failed to enqueue notification job:", error.message);
+    }
+
+    try {
+      await aiQueue.add(
+        "suggest-task-insights",
+        {
+          taskId: task._id.toString(),
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 2000,
+          },
+          removeOnComplete: true,
+          removeOnFail: false,
+        }
+      );
+    } catch (error) {
+      console.error("Failed to enqueue AI job:", error.message);
+    }
+
     await clearTaskCache();
 
     const populatedTask = await Task.findById(task._id)
@@ -87,21 +137,13 @@ exports.getAllTasks = async (req, res) => {
       ];
     }
 
-    //  Stable cache key (FIXED)
     const cacheKey = `tasks:${req.user.role}:${req.user.id}:page=${page}:limit=${limit}:status=${req.query.status || ""}:priority=${req.query.priority || ""}:search=${req.query.search || ""}`;
 
-    console.log("Cache Key:", cacheKey);
-
-    //  Check cache
     const cached = await redisClient.get(cacheKey);
     if (cached) {
-      console.log("Serving from cache");
       return res.json(JSON.parse(cached));
     }
 
-    console.log("Cache MISS -> DB hit");
-
-    //  DB queries
     const [totalTasks, tasks] = await Promise.all([
       Task.countDocuments(filter),
       Task.find(filter)
@@ -120,11 +162,7 @@ exports.getAllTasks = async (req, res) => {
       limit,
     };
 
-    console.log("Saving to cache...");
-
     await redisClient.setEx(cacheKey, cacheTtlSeconds, JSON.stringify(response));
-
-    console.log("Saved to cache");
 
     res.json(response);
   } catch (error) {
@@ -132,6 +170,7 @@ exports.getAllTasks = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 // ================= GET TASK BY ID =================
 exports.getTaskById = async (req, res) => {
@@ -265,6 +304,29 @@ exports.assignTask = async (req, res) => {
 
     task.assignedTo = assignedTo;
     await task.save();
+
+    try {
+      await notificationQueue.add(
+        "task-assigned",
+        {
+          taskId: task._id.toString(),
+          title: task.title,
+          assignedTo,
+          assignedBy: req.user.id,
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 2000,
+          },
+          removeOnComplete: true,
+          removeOnFail: false,
+        }
+      );
+    } catch (error) {
+      console.error("Failed to enqueue notification job:", error.message);
+    }
 
     await clearTaskCache();
 

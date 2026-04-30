@@ -4,6 +4,8 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 require('dotenv').config();
 require('./src/config/db');
+require("./src/workers/notificationWorker");
+require("./src/workers/aiWorkers");
 const { connectRedis } = require("./src/config/redis");
 connectRedis();
 

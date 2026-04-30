@@ -12,6 +12,11 @@ const taskSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    aiInsight: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     status: {
       type: String,
       enum: ["todo", "in-progress", "done", "overdue"],
