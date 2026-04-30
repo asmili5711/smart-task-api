@@ -393,3 +393,115 @@ Tested manually using Postman for:
 - forbidden access for non-admin users
 - returned counts for users, task statuses, and task priorities
 
+
+## ⚙️ Background Job Processing (Queue System)
+
+This project uses **BullMQ** (Redis-based queue) to handle background tasks asynchronously, improving performance and scalability.
+
+### 🧠 Why Queue is Used
+
+Instead of processing heavy or non-critical operations during API requests, jobs are offloaded to a background worker.
+
+**Without Queue:**
+
+```
+API → Process everything → Slow response
+```
+
+**With Queue:**
+
+```
+API → Add job → Fast response
+             ↓
+        Worker processes job in background
+```
+
+---
+
+## 🛠️ Technologies Used
+
+* **BullMQ** – Job queue management
+* **Redis** – Queue storage and job state management
+
+---
+
+## 🔄 Implemented Queues
+
+### 1. Notification Queue
+
+Handles task-related notifications.
+
+**Triggers:**
+
+* Task creation
+* Task assignment
+
+**Worker Responsibilities:**
+
+* Saves notification in database
+* Enables future support for in-app notifications and email delivery
+
+---
+
+### 2. AI Queue
+
+Handles background processing for task insights.
+
+**Trigger:**
+
+* Task creation
+
+**Worker Responsibilities:**
+
+* Generates a placeholder AI insight
+* Stores insight in the Task document
+
+> Note: This will be upgraded with real LLM integration in a future feature branch.
+
+---
+
+## 🧱 Architecture Flow
+
+```
+API → Queue → Worker → Database
+```
+
+* API remains fast and non-blocking
+* Workers handle processing asynchronously
+* Results are persisted in MongoDB
+
+---
+
+## 🔁 Retry & Failure Handling
+
+* Jobs are retried up to **3 times**
+* Exponential backoff is applied between retries
+* Failed jobs are retained in Redis for debugging
+
+Basic failure logging is implemented to track job errors.
+
+---
+
+## ⚡ Benefits
+
+* Faster API responses
+* Improved scalability
+* Separation of concerns
+* Foundation for future features like:
+
+  * Email notifications
+  * AI-based task insights
+  * Scheduled jobs (cron)
+
+---
+
+## 📌 Current Status
+
+✔ Queue system implemented
+✔ Notification processing stored in DB
+✔ AI placeholder processing implemented
+⚠ Advanced failure handling and monitoring can be added in future improvements
+
+---
+
+
