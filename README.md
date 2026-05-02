@@ -505,3 +505,32 @@ Basic failure logging is implemented to track job errors.
 ---
 
 
+## ⏰ Scheduled Jobs (Cron)
+
+This module uses `node-cron` to automate repetitive background tasks at specific time intervals. Instead of performing heavy operations directly, the cron jobs add messages to our BullMQ queues to ensure the API remains fast and scalable.
+
+### Implemented Jobs
+
+#### 1. Overdue Task Job
+- **Schedule:** Every hour (`0 * * * *`)
+- **Action:** Scans the database for tasks where the `dueDate` has passed and the status is not `done`. Updates those tasks to `overdue`.
+- **Queue:** Uses `overdueQueue`
+
+#### 2. Daily Reminder Job
+- **Schedule:** Every day at 9:00 AM (`0 9 * * *`)
+- **Action:** Scans for tasks that are due today or overdue. Creates a specific notification record in the database for the user assigned to the task. 
+- **Queue:** Uses `notificationQueue`
+
+#### 3. Weekly AI Summary Job
+- **Schedule:** Every Sunday at Midnight (`0 0 * * 0`)
+- **Action:** Gathers all tasks created within the last 7 days and prepares them to be sent to the Google Gemini API for an AI-generated weekly insight report.
+- **Queue:** Uses `aiQueue`
+
+#### 4. Log Cleanup Job
+- **Schedule:** Every Sunday at Midnight (`0 0 * * 0`)
+- **Action:** A local maintenance job that scans the `logs/` directory and permanently deletes any `.log` files that are older than 7 days to prevent the server storage from filling up.
+
+### API Endpoints for Notifications
+Users can view the results of the Daily Reminder cron job by accessing their notifications:
+- `GET /api/notifications` - View all alerts and reminders.
+- `PATCH /api/notifications/:id/read` - Mark a specific notification as read.
