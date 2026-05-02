@@ -32,6 +32,23 @@ const aiWorker = new Worker(
 
       return;
     }
+    // --- PASTE THIS NEW BLOCK ---
+    if (job.name === "generate-weekly-summary") {
+      console.log("Preparing to send weekly task data to Google Gemini API...");
+
+      // Fetch tasks from the past week
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const recentTasks = await Task.find({
+        createdAt: { $gte: oneWeekAgo }
+      });
+      console.log(`Found ${recentTasks.length} tasks from the past week.`);
+      // TODO: Actually send to Google Gemini API when LLM integration is built
+
+      return;
+    }
+    // ----------------------------
+
 
     throw new Error(`Unknown AI job: ${job.name}`);
   },

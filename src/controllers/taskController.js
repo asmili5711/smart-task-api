@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const Task = require("../models/Task");
 const User = require("../models/User");
 const { redisClient } = require("../config/redis");
-const notificationQueue = require("../queues/notificationQueue");
+const { notificationQueue } = require("../queues/notificationQueue");
 const aiQueue = require("../queues/aiQueue");
 
 

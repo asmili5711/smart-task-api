@@ -5,4 +5,4 @@ const notificationQueue = new Queue("notifications", {
   connection,
 });
 
-module.exports = notificationQueue;
+module.exports = { notificationQueue };
