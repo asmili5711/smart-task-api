@@ -4,10 +4,13 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 require('dotenv').config();
 require('./src/config/db');
-require("./src/workers/notificationWorker");
-require("./src/workers/aiWorkers");
 const { connectRedis } = require("./src/config/redis");
 connectRedis();
+require("./src/workers/notificationWorker");
+require("./src/workers/aiWorkers");
+require("./src/workers/overdueWorker");
+require("./src/cron/cronJobs");
+const notificationRoutes = require("./src/routes/notificationRoutes");
 
 
 var indexRouter = require('./src/routes/index');
@@ -30,6 +33,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 
 
