@@ -1,7 +1,8 @@
 var createError = require('http-errors');
 var express = require('express');
 var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+var morgan = require('morgan');
+const logger = require("./src/config/logger");
 require('dotenv').config();
 require('./src/config/db');
 const { connectRedis } = require("./src/config/redis");
@@ -23,7 +24,11 @@ const verifyToken = require("./src/middleware/authMiddleware");
 
 var app = express();
 
-app.use(logger('dev'));
+app.use(morgan('combined', {
+  stream: {
+    write: (message) => logger.http(message.trim()),
+  },
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -64,6 +69,8 @@ app.use(function(req, res, next) {
 
 // error handler
 app.use(function(err, req, res, next) {
+
+  logger.error(`${err.status || 500} - ${err.message} - ${req.method} ${req.originalUrl}`);
   res.status(err.status || 500).json({
     message: err.message,
     error: req.app.get('env') === 'development' ? err : {}

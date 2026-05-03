@@ -1,5 +1,6 @@
 const Task = require("../models/Task");
 const User = require("../models/User");
+const logger = require("../config/logger"); 
 
 exports.getDashboardStats = async (req, res) => {
   try {
@@ -31,6 +32,8 @@ exports.getDashboardStats = async (req, res) => {
       Task.countDocuments({ priority: "high" }),
     ]);
 
+    logger.info(`Dashboard stats fetched | by: ${req.user.id} | role: ${req.user.role}`);
+
     res.json({
       users: {
         total: totalUsers,
@@ -52,7 +55,7 @@ exports.getDashboardStats = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Dashboard Stats Error:", error);
+    logger.error(`Dashboard Stats Error [user:${req.user?.id}]: ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };

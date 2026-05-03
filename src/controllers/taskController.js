@@ -4,8 +4,7 @@ const User = require("../models/User");
 const { redisClient } = require("../config/redis");
 const { notificationQueue } = require("../queues/notificationQueue");
 const aiQueue = require("../queues/aiQueue");
-
-
+const logger = require("../config/logger");
 
 const cacheTtlSeconds = Number(process.env.CACHE_TTL_SECONDS) || 60;
 
@@ -15,10 +14,10 @@ const clearTaskCache = async () => {
     const keys = await redisClient.keys("tasks:*");
     if (keys.length > 0) {
       await redisClient.del(keys);
-      console.log("Cache cleared");
+      logger.debug(`Task cache cleared - ${keys.length} keys removed`);
     }
   } catch (error) {
-    console.error("Cache clear error:", error);
+    logger.error(`Cache clear error: ${error.message}`);
   }
 };
 
@@ -28,15 +27,18 @@ exports.createTask = async (req, res) => {
     const { title, description, priority, dueDate, assignedTo } = req.body;
 
     if (!["ADMIN", "MANAGER"].includes(req.user.role)) {
+      logger.warn(`Access denied on createTask - user: ${req.user.id} | role: ${req.user.role}`);
       return res.status(403).json({ message: "Access denied" });
     }
 
     if (!assignedTo || !mongoose.Types.ObjectId.isValid(assignedTo)) {
+      logger.warn(`createTask - invalid assignedTo value: ${assignedTo}`);
       return res.status(400).json({ message: "Valid assigned user required" });
     }
 
     const user = await User.findById(assignedTo);
     if (!user) {
+      logger.warn(`createTask - assigned user not found: ${assignedTo}`);
       return res.status(404).json({ message: "Assigned user not found" });
     }
 
@@ -49,6 +51,8 @@ exports.createTask = async (req, res) => {
       createdBy: req.user.id,
     });
 
+    logger.info(`Task created: "${task.title}" | id: ${task._id} | by: ${req.user.id}`);
+
     try {
       await notificationQueue.add(
         "task-created",
@@ -60,16 +64,13 @@ exports.createTask = async (req, res) => {
         },
         {
           attempts: 3,
-          backoff: {
-            type: "exponential",
-            delay: 2000,
-          },
+          backoff: { type: "exponential", delay: 2000 },
           removeOnComplete: true,
           removeOnFail: false,
         }
       );
     } catch (error) {
-      console.error("Failed to enqueue notification job:", error.message);
+      logger.warn(`Failed to enqueue notification job for task ${task._id}: ${error.message}`);
     }
 
     try {
@@ -83,16 +84,13 @@ exports.createTask = async (req, res) => {
         },
         {
           attempts: 3,
-          backoff: {
-            type: "exponential",
-            delay: 2000,
-          },
+          backoff: { type: "exponential", delay: 2000 },
           removeOnComplete: true,
           removeOnFail: false,
         }
       );
     } catch (error) {
-      console.error("Failed to enqueue AI job:", error.message);
+      logger.warn(`Failed to enqueue AI job for task ${task._id}: ${error.message}`);
     }
 
     await clearTaskCache();
@@ -106,7 +104,7 @@ exports.createTask = async (req, res) => {
       task: populatedTask,
     });
   } catch (error) {
-    console.error("Create Task Error:", error);
+    logger.error(`Create Task Error [user:${req.user?.id}]: ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -141,8 +139,11 @@ exports.getAllTasks = async (req, res) => {
 
     const cached = await redisClient.get(cacheKey);
     if (cached) {
+      logger.debug(`Cache hit: ${cacheKey}`);
       return res.json(JSON.parse(cached));
     }
+
+    logger.debug(`Cache miss: ${cacheKey}`);
 
     const [totalTasks, tasks] = await Promise.all([
       Task.countDocuments(filter),
@@ -164,13 +165,14 @@ exports.getAllTasks = async (req, res) => {
 
     await redisClient.setEx(cacheKey, cacheTtlSeconds, JSON.stringify(response));
 
+    logger.info(`getAllTasks [user:${req.user.id} | role:${req.user.role}] - returned ${tasks.length} tasks`);
+
     res.json(response);
   } catch (error) {
-    console.error("Get Tasks Error:", error);
+    logger.error(`Get All Tasks Error [user:${req.user?.id}]: ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 // ================= GET TASK BY ID =================
 exports.getTaskById = async (req, res) => {
@@ -178,6 +180,7 @@ exports.getTaskById = async (req, res) => {
     const taskId = req.params.id;
 
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
+      logger.warn(`getTaskById - invalid task id: ${taskId}`);
       return res.status(400).json({ message: "Invalid task id" });
     }
 
@@ -186,6 +189,7 @@ exports.getTaskById = async (req, res) => {
       .populate("createdBy", "name email role");
 
     if (!task) {
+      logger.warn(`getTaskById - task not found: ${taskId}`);
       return res.status(404).json({ message: "Task not found" });
     }
 
@@ -193,18 +197,20 @@ exports.getTaskById = async (req, res) => {
     const isManagerOwner =
       req.user.role === "MANAGER" &&
       task.createdBy._id.toString() === req.user.id.toString();
-
     const isAssignedUser =
       task.assignedTo &&
       task.assignedTo._id.toString() === req.user.id.toString();
 
     if (!isAdmin && !isManagerOwner && !isAssignedUser) {
+      logger.warn(`getTaskById - access denied [user:${req.user.id} | task:${taskId}]`);
       return res.status(403).json({ message: "Access denied" });
     }
 
+    logger.info(`Task fetched: ${taskId} by user: ${req.user.id}`);
+
     res.json({ task });
   } catch (error) {
-    console.error("Get Task Error:", error);
+    logger.error(`Get Task By ID Error [id:${req.params?.id}]: ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -215,11 +221,13 @@ exports.updateTask = async (req, res) => {
     const taskId = req.params.id;
 
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
+      logger.warn(`updateTask - invalid task id: ${taskId}`);
       return res.status(400).json({ message: "Invalid task id" });
     }
 
     const task = await Task.findById(taskId);
     if (!task) {
+      logger.warn(`updateTask - task not found: ${taskId}`);
       return res.status(404).json({ message: "Task not found" });
     }
 
@@ -227,20 +235,19 @@ exports.updateTask = async (req, res) => {
     const isManagerOwner =
       req.user.role === "MANAGER" &&
       task.createdBy.toString() === req.user.id.toString();
-
     const isAssignedUser =
       task.assignedTo &&
       task.assignedTo.toString() === req.user.id.toString();
 
     if (!isAdmin && !isManagerOwner && !isAssignedUser) {
+      logger.warn(`updateTask - access denied [user:${req.user.id} | task:${taskId}]`);
       return res.status(403).json({ message: "Access denied" });
     }
 
     if (isAssignedUser && !isAdmin && !isManagerOwner) {
       if (!req.body.status) {
-        return res.status(403).json({
-          message: "You can only update task status",
-        });
+        logger.warn(`updateTask - user ${req.user.id} tried to update fields other than status`);
+        return res.status(403).json({ message: "You can only update task status" });
       }
       task.status = req.body.status;
     } else {
@@ -251,16 +258,15 @@ exports.updateTask = async (req, res) => {
     await task.save();
     await clearTaskCache();
 
+    logger.info(`Task updated: ${taskId} by user: ${req.user.id}`);
+
     const populatedTask = await Task.findById(task._id)
       .populate("assignedTo", "name email role")
       .populate("createdBy", "name email role");
 
-    res.json({
-      message: "Task updated",
-      task: populatedTask,
-    });
+    res.json({ message: "Task updated", task: populatedTask });
   } catch (error) {
-    console.error("Update Task Error:", error);
+    logger.error(`Update Task Error [id:${req.params?.id} | user:${req.user?.id}]: ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -272,19 +278,23 @@ exports.assignTask = async (req, res) => {
     const { assignedTo } = req.body;
 
     if (!["ADMIN", "MANAGER"].includes(req.user.role)) {
+      logger.warn(`assignTask - access denied [user:${req.user.id} | role:${req.user.role}]`);
       return res.status(403).json({ message: "Access denied" });
     }
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
+      logger.warn(`assignTask - invalid task id: ${id}`);
       return res.status(400).json({ message: "Invalid task id" });
     }
 
     if (!mongoose.Types.ObjectId.isValid(assignedTo)) {
+      logger.warn(`assignTask - invalid assignedTo id: ${assignedTo}`);
       return res.status(400).json({ message: "Invalid assigned user id" });
     }
 
     const task = await Task.findById(id);
     if (!task) {
+      logger.warn(`assignTask - task not found: ${id}`);
       return res.status(404).json({ message: "Task not found" });
     }
 
@@ -292,18 +302,20 @@ exports.assignTask = async (req, res) => {
       req.user.role === "MANAGER" &&
       task.createdBy.toString() !== req.user.id.toString()
     ) {
-      return res.status(403).json({
-        message: "Managers can assign only their tasks",
-      });
+      logger.warn(`assignTask - manager ${req.user.id} tried to assign task they don't own: ${id}`);
+      return res.status(403).json({ message: "Managers can assign only their tasks" });
     }
 
     const user = await User.findById(assignedTo);
     if (!user) {
+      logger.warn(`assignTask - assigned user not found: ${assignedTo}`);
       return res.status(404).json({ message: "User not found" });
     }
 
     task.assignedTo = assignedTo;
     await task.save();
+
+    logger.info(`Task ${id} assigned to user ${assignedTo} by ${req.user.id}`);
 
     try {
       await notificationQueue.add(
@@ -316,23 +328,20 @@ exports.assignTask = async (req, res) => {
         },
         {
           attempts: 3,
-          backoff: {
-            type: "exponential",
-            delay: 2000,
-          },
+          backoff: { type: "exponential", delay: 2000 },
           removeOnComplete: true,
           removeOnFail: false,
         }
       );
     } catch (error) {
-      console.error("Failed to enqueue notification job:", error.message);
+      logger.warn(`Failed to enqueue notification job for assignTask ${id}: ${error.message}`);
     }
 
     await clearTaskCache();
 
     res.json({ message: "Task assigned" });
   } catch (error) {
-    console.error("Assign Task Error:", error);
+    logger.error(`Assign Task Error [id:${req.params?.id} | user:${req.user?.id}]: ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -343,11 +352,13 @@ exports.deleteTask = async (req, res) => {
     const taskId = req.params.id;
 
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
+      logger.warn(`deleteTask - invalid task id: ${taskId}`);
       return res.status(400).json({ message: "Invalid task id" });
     }
 
     const task = await Task.findById(taskId);
     if (!task) {
+      logger.warn(`deleteTask - task not found: ${taskId}`);
       return res.status(404).json({ message: "Task not found" });
     }
 
@@ -358,12 +369,14 @@ exports.deleteTask = async (req, res) => {
     ) {
       await Task.findByIdAndDelete(taskId);
       await clearTaskCache();
+      logger.info(`Task deleted: ${taskId} by user: ${req.user.id} | role: ${req.user.role}`);
       return res.json({ message: "Task deleted" });
     }
 
+    logger.warn(`deleteTask - access denied [user:${req.user.id} | task:${taskId}]`);
     return res.status(403).json({ message: "Access denied" });
   } catch (error) {
-    console.error("Delete Task Error:", error);
+    logger.error(`Delete Task Error [id:${req.params?.id} | user:${req.user?.id}]: ${error.message}`);
     res.status(500).json({ message: "Server error" });
   }
 };
