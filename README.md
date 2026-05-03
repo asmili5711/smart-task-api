@@ -534,3 +534,36 @@ This module uses `node-cron` to automate repetitive background tasks at specific
 Users can view the results of the Daily Reminder cron job by accessing their notifications:
 - `GET /api/notifications` - View all alerts and reminders.
 - `PATCH /api/notifications/:id/read` - Mark a specific notification as read.
+
+
+## 📝 Centralized Logging System
+
+This module implements an enterprise-grade, centralized logging architecture using **Winston** and **Morgan**. It completely replaces standard `console.log()` statements across the entire application (including background queues and cron jobs) with structured, level-based logging.
+
+### Features
+
+- **Daily Log Rotation:** Uses `winston-daily-rotate-file` to automatically create a new log file every day, preventing massive, unmanageable log files.
+- **Log Retention:** Automatically deletes old log files (`app.log` kept for 14 days, `error.log` kept for 30 days).
+- **HTTP Request Tracking:** Uses `morgan` to intercept incoming API requests and stream them directly into the Winston logger.
+- **Colorized Console:** Outputs color-coded logs to the terminal for easy debugging during development.
+- **Global Error Handling:** Captures all unhandled API errors and saves the stack trace to the error logs.
+
+### Log Outputs
+
+Logs are saved inside the `logs/` directory in the following formats:
+
+#### 1. `app-YYYY-MM-DD.log`
+Contains all standard application activity, including:
+- HTTP API Requests (from Morgan)
+- Authentication attempts (successes and failures)
+- Database interactions (tasks created, profiles updated)
+- Background worker events (cron jobs triggered, queues processed)
+
+#### 2. `error-YYYY-MM-DD.log`
+A dedicated, isolated log file containing only severe errors:
+- Server crashes
+- BullMQ worker failures
+- Unhandled route exceptions
+
+### Implementation Details
+The core logger is configured in `src/config/logger.js`. It is imported into every controller, worker, and cron file to ensure 100% of the application's activity is monitored.
