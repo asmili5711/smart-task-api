@@ -21,8 +21,14 @@ const {
   deleteTask,
 } = require("../controllers/taskController");
 
+const {
+  generateQRCode,
+  getTaskByQR,
+} = require("../controllers/qrController"); // ← added
+
 router.use(verifyToken);
 
+// ================= TASK ROUTES =================
 router.post(
   "/",
   authorizeRoles("ADMIN", "MANAGER"),
@@ -58,6 +64,19 @@ router.delete(
   authorizeRoles("ADMIN"),
   validateParams(taskIdParamSchema),
   deleteTask
+);
+
+// ================= QR CODE ROUTES =================
+router.get(
+  "/:id/qr",
+  validateParams(taskIdParamSchema),
+  generateQRCode
+);
+
+router.get(
+  "/:id/scan",
+  validateParams(taskIdParamSchema),
+  getTaskByQR
 );
 
 module.exports = router;
