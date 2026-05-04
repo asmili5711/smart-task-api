@@ -625,3 +625,93 @@ GEMINI_API_KEY=your_api_key_here
 
 - **Check Background Worker (for missing task descriptions):**
   Create a task without a description and verify that the `description` field is populated after a short delay.
+
+
+
+QR Code Feature
+
+This project supports QR code generation for tasks, allowing users to quickly access task details by scanning a QR code.
+
+ How It Works
+User requests QR code for a task
+        ↓
+Server generates QR code with task URL
+        ↓
+Returns base64 image string
+        ↓
+User scans QR with phone
+        ↓
+Phone opens task details endpoint
+        ↓
+Task details are returned
+
+ Endpoints
+Method	Endpoint	Access	Description
+GET	/api/tasks/:id/qr	All (RBAC applied)	Generate QR code for a task
+GET	/api/tasks/:id/scan	All (RBAC applied)	Scan QR → fetch task details
+
+ Generate QR Code
+Request
+GET /api/tasks/:id/qr
+Authorization: Bearer <token>
+Response
+{
+  "message": "QR code generated successfully",
+  "taskId": "681622a5cec1b5d081a9b8b5",
+  "taskTitle": "Fix payment gateway bug",
+  "taskUrl": "http://localhost:3000/api/tasks/681622a5cec1b5d081a9b8b5",
+  "qrCode": "data:image/png;base64,iVBORw0KGgo..."
+}
+ View QR Code Image
+
+To view the QR code:
+
+Copy the qrCode value from the response
+Paste it into your browser address bar
+
+Example:
+
+data:image/png;base64,iVBORw0KGgo...
+
+OR use an online decoder:
+ https://base64.guru/converter/decode/image
+
+ Scan QR Code
+Request
+GET /api/tasks/:id/scan
+Authorization: Bearer <token>
+Response
+{
+  "message": "Task fetched successfully via QR",
+  "task": {
+    "_id": "681622a5cec1b5d081a9b8b5",
+    "title": "Fix payment gateway bug",
+    "status": "todo",
+    "priority": "high",
+    "assignedTo": {
+      "name": "Rahul",
+      "email": "rahul@gmail.com"
+    }
+  }
+}
+ Access Control (RBAC)
+Role	Permissions
+ADMIN	Can generate QR for any task
+MANAGER	Can generate QR for tasks they created
+USER	Can generate QR for tasks assigned to them
+ Environment Variables
+# Development
+BASE_URL=http://localhost:3000
+
+# Production
+BASE_URL=https://your-app.onrender.com
+ Development vs Production
+Environment	BASE_URL	QR Works on Phone
+Development	http://localhost:3000
+	 No
+Production	https://your-app.onrender.com
+	 Yes
+ Files Added
+File	Description
+src/controllers/qrController.js	Handles QR generation & scan logic
+src/routes/taskRoutes.js	Added /qr and /scan endpoints
