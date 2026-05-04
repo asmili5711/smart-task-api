@@ -567,3 +567,61 @@ A dedicated, isolated log file containing only severe errors:
 
 ### Implementation Details
 The core logger is configured in `src/config/logger.js`. It is imported into every controller, worker, and cron file to ensure 100% of the application's activity is monitored.
+
+## 🤖 AI / LLM Integration (Google Gemini)
+
+This module integrates Google's Gemini LLM to bring "smart" features to the task management system. It provides both direct API endpoints for on-demand AI analysis and background processing for automated task insights.
+
+### Features
+
+- **Automated Task Insights:** When a task is created without a description, the AI background worker automatically generates a relevant description and suggests a priority based on the task title.
+- **On-Demand Description Generation:** Admins and Managers can request the AI to generate detailed task descriptions.
+- **Priority Suggestion:** The AI can analyze a task's title, description, and due date to suggest the optimal priority level (`low`, `medium`, `high`, `critical`).
+- **Smart Task Summarization:** Generates a human-readable, cohesive summary of a user's active tasks and workload.
+
+### API Endpoints
+
+- `POST /api/llm/generate-description` - Generates a task description (Requires `ADMIN` or `MANAGER`).
+- `POST /api/llm/suggest-priority` - Analyzes a task and suggests priority (Requires `ADMIN` or `MANAGER`).
+- `GET /api/llm/summarize` - Returns an AI-generated summary of up to 20 recent tasks for the authenticated user.
+
+### Background Workers
+
+The LLM module heavily utilizes the `aiQueue` (BullMQ) to process tasks asynchronously:
+1. **`suggest-task-insights`:** Triggered automatically when a new task is created. Fills in missing descriptions and populates the `aiInsight` field.
+2. **`generate-weekly-summary`:** Triggered every Sunday at midnight by a cron job. Summarizes all tasks created in the past 7 days.
+
+### Setup Requirements
+
+To use the AI features, you must provide a valid Google Gemini API key in your `.env` file:
+
+```env
+GEMINI_API_KEY=your_api_key_here
+```
+
+### Testing
+
+- **Generate Description:**
+  ```bash
+  curl -X POST http://localhost:3000/api/llm/generate-description \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"title": "Implement JWT authentication", "priority": "high"}'
+  ```
+
+- **Suggest Priority:**
+  ```bash
+  curl -X POST http://localhost:3000/api/llm/suggest-priority \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"title": "Fix login bug", "description": "Users are getting error 500 on login page", "currentPriority": "medium"}'
+  ```
+
+- **Summarize Tasks:**
+  ```bash
+  curl -X GET "http://localhost:3000/api/llm/summarize?limit=10" \
+    -H "Authorization: Bearer YOUR_TOKEN"
+  ```
+
+- **Check Background Worker (for missing task descriptions):**
+  Create a task without a description and verify that the `description` field is populated after a short delay.
