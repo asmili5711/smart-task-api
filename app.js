@@ -12,6 +12,7 @@ require("./src/workers/aiWorkers");
 require("./src/workers/overdueWorker");
 require("./src/cron/cronJobs");
 const notificationRoutes = require("./src/routes/notificationRoutes");
+const llmRoutes = require("./src/routes/llmRoutes");
 
 
 var indexRouter = require('./src/routes/index');
@@ -39,6 +40,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/llm", llmRoutes);
 
 
 

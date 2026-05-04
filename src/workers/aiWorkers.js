@@ -1,24 +1,12 @@
 const { Worker } = require("bullmq");
 const connection = require("../queues/connection");
 const Task = require("../models/Task");
-const logger = require("../config/logger"); // ← added
-
-// ================= HELPER =================
-const buildInsight = ({ title, description, priority }) => {
-  if (priority === "high") {
-    return "This task is marked high priority and may need immediate attention.";
-  }
-
-  if (!description || !description.trim()) {
-    return "This task has no description. Add more details for better clarity.";
-  }
-
-  if (title && title.toLowerCase().includes("urgent")) {
-    return "The title suggests urgency. Review priority and due date.";
-  }
-
-  return "This task looks normal. Keep the description and deadline updated.";
-};
+const logger = require("../config/logger");
+const {
+  generateTaskDescription,
+  suggestTaskPriority,
+  generateWeeklySummary,
+} = require("../services/geminiService");
 
 // ================= AI WORKER =================
 const aiWorker = new Worker(
@@ -31,11 +19,27 @@ const aiWorker = new Worker(
 
       logger.info(`AI Worker: processing suggest-task-insights | taskId: ${taskId}`);
 
-      const insight = buildInsight({ title, description, priority });
+      try {
+        // Generate AI description if task has no description
+        let aiDescription = description;
+        if (!description || !description.trim()) {
+          aiDescription = await generateTaskDescription(title, priority);
+          await Task.findByIdAndUpdate(taskId, { description: aiDescription });
+          logger.info(`AI Worker: description generated and saved for task: ${taskId}`);
+        }
 
-      await Task.findByIdAndUpdate(taskId, { aiInsight: insight });
+        // Suggest priority using Gemini
+        const suggestedPriority = await suggestTaskPriority(title, aiDescription, null);
+        await Task.findByIdAndUpdate(taskId, {
+          aiInsight: `AI Suggested Priority: ${suggestedPriority}. Task has been analyzed and description updated if missing.`,
+        });
 
-      logger.info(`AI Worker: insight saved for task: ${taskId} | insight: "${insight}"`);
+        logger.info(`AI Worker: insights saved for task: ${taskId} | suggested priority: ${suggestedPriority}`);
+      } catch (error) {
+        logger.error(`AI Worker: suggest-task-insights failed for task ${taskId}: ${error.message}`);
+        throw error; // rethrow so BullMQ retries
+      }
+
       return;
     }
 
@@ -53,11 +57,19 @@ const aiWorker = new Worker(
 
         logger.info(`AI Worker: found ${recentTasks.length} tasks from the past week`);
 
-        // TODO: Send to Google Gemini API when LLM feature is built
-        logger.info("AI Worker: weekly summary job done - LLM integration pending");
+        if (recentTasks.length === 0) {
+          logger.info("AI Worker: no tasks found for weekly summary — skipping");
+          return;
+        }
+
+        const summary = await generateWeeklySummary(recentTasks);
+
+        // Save summary to DB as a special task or log it
+        logger.info(`AI Worker: weekly summary generated:\n${summary}`);
+
       } catch (error) {
         logger.error(`AI Worker: weekly summary failed: ${error.message}`);
-        throw error; // rethrow so BullMQ marks job as failed and retries
+        throw error;
       }
 
       return;
