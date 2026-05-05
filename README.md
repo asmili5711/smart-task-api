@@ -715,3 +715,69 @@ Production	https://your-app.onrender.com
 File	Description
 src/controllers/qrController.js	Handles QR generation & scan logic
 src/routes/taskRoutes.js	Added /qr and /scan endpoints
+
+
+
+## Email Notifications
+
+This project uses **SendGrid** to send real email notifications to users when tasks are created or assigned to them.
+
+---
+
+### How It Works
+Task created / assigned
+↓
+API adds job to notificationQueue (BullMQ)
+↓
+notificationWorker picks up the job
+↓
+Notification saved to MongoDB
+↓
+SendGrid sends real email to user inbox ✅
+
+---
+
+### Email Types
+
+| Email | Trigger | Recipient |
+|---|---|---|
+| New Task Assigned | Task created and assigned to user | Assigned user |
+| Task Assigned to You | Task reassigned to another user | Newly assigned user |
+| Daily Reminder | Cron job fires at 9AM daily | Users with due tasks |
+
+---
+
+### Environment Variables
+
+```env
+SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxxx
+EMAIL_FROM=your_verified_email@gmail.com
+```
+
+---
+
+### Setup Steps
+
+Create free account at sendgrid.com
+Go to Settings → API Keys → Create API Key
+Go to Settings → Sender Authentication → Verify a Single Sender
+Add API key and verified email to .env file
+
+
+---
+
+### Files Added
+
+| File | What It Does |
+|---|---|
+| `src/services/emailService.js` | SendGrid setup and email templates |
+| `src/workers/notificationWorker.js` | Updated to send emails after saving to DB |
+
+---
+
+### Important Notes
+
+- SendGrid free tier allows **100 emails per day**
+- Emails sent **asynchronously** via BullMQ — API stays fast
+- If SendGrid is down — BullMQ **retries automatically** up to 3 times
+- All email events logged via **Winston**
