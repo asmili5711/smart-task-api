@@ -2,7 +2,14 @@ const { Worker } = require("bullmq");
 const connection = require("../queues/connection");
 const Notification = require("../models/notification");
 const Task = require("../models/Task");
-const logger = require("../config/logger"); 
+const User = require("../models/User");
+const logger = require("../config/logger");
+const {
+  sendEmail,
+  taskCreatedEmail,
+  taskAssignedEmail,
+  dailyReminderEmail,
+} = require("../services/emailService"); // ← added
 
 const notificationWorker = new Worker(
   "notifications",
@@ -11,47 +18,63 @@ const notificationWorker = new Worker(
 
     switch (job.name) {
 
-      // Task Created 
+      // ── Task Created ───────────────────────────────────────
       case "task-created": {
         const { taskId, title, assignedTo, createdBy } = job.data;
 
         try {
+          // Save to DB
           await Notification.create({
             user: assignedTo,
             triggeredBy: createdBy,
             message: `A new task "${title}" was created and assigned to you.`,
             task: taskId,
           });
-          logger.info(`Notification Worker: task-created notification saved | taskId: ${taskId} | assignedTo: ${assignedTo}`);
+          logger.info(`Notification Worker: task-created notification saved | taskId: ${taskId}`);
+
+          // Send email
+          const user = await User.findById(assignedTo);
+          if (user && user.email) {
+            const { subject, html } = taskCreatedEmail(user.name, title);
+            await sendEmail({ to: user.email, subject, html });
+          }
         } catch (error) {
-          logger.error(`Notification Worker: failed to save task-created notification | taskId: ${taskId} | error: ${error.message}`);
-          throw error; // rethrow so BullMQ retries
+          logger.error(`Notification Worker: task-created failed | taskId: ${taskId} | error: ${error.message}`);
+          throw error;
         }
 
         break;
       }
 
-      // Task Assigned 
+      // ── Task Assigned ──────────────────────────────────────
       case "task-assigned": {
         const { taskId, title, assignedTo, assignedBy } = job.data;
 
         try {
+          // Save to DB
           await Notification.create({
             user: assignedTo,
             triggeredBy: assignedBy,
             message: `Task "${title}" was assigned to you.`,
             task: taskId,
           });
-          logger.info(`Notification Worker: task-assigned notification saved | taskId: ${taskId} | assignedTo: ${assignedTo}`);
+          logger.info(`Notification Worker: task-assigned notification saved | taskId: ${taskId}`);
+
+          // Send email
+          const user = await User.findById(assignedTo);
+          if (user && user.email) {
+            const { subject, html } = taskAssignedEmail(user.name, title);
+            await sendEmail({ to: user.email, subject, html });
+          }
         } catch (error) {
-          logger.error(`Notification Worker: failed to save task-assigned notification | taskId: ${taskId} | error: ${error.message}`);
-          throw error; // rethrow so BullMQ retries
+          logger.error(`Notification Worker: task-assigned failed | taskId: ${taskId} | error: ${error.message}`);
+          throw error;
         }
 
         break;
       }
 
-      //  Daily Reminder 
+      // ── Daily Reminder ─────────────────────────────────────
       case "daily-reminder": {
         logger.info("Notification Worker: starting daily reminder processing");
 
@@ -61,7 +84,7 @@ const notificationWorker = new Worker(
             status: { $ne: "done" },
           }).select("_id title assignedTo");
 
-          logger.info(`Notification Worker: found ${tasks.length} due tasks for daily reminder`);
+          logger.info(`Notification Worker: found ${tasks.length} due tasks`);
 
           const taskIds = tasks.map((t) => t._id);
 
@@ -83,18 +106,27 @@ const notificationWorker = new Worker(
 
           if (toInsert.length > 0) {
             await Notification.insertMany(toInsert);
+
+            // Send emails for each reminder
+            for (const task of tasks.filter(t => !existingTaskIds.has(String(t._id)))) {
+              const user = await User.findById(task.assignedTo);
+              if (user && user.email) {
+                const { subject, html } = dailyReminderEmail(user.name, task.title);
+                await sendEmail({ to: user.email, subject, html });
+              }
+            }
           }
 
-          logger.info(`Notification Worker: daily reminders done | sent: ${toInsert.length} | skipped duplicates: ${tasks.length - toInsert.length}`);
+          logger.info(`Notification Worker: daily reminders done | sent: ${toInsert.length} | skipped: ${tasks.length - toInsert.length}`);
         } catch (error) {
           logger.error(`Notification Worker: daily reminder failed: ${error.message}`);
-          throw error; // rethrow so BullMQ retries
+          throw error;
         }
 
         break;
       }
 
-      //  Unknown Job 
+      // ── Unknown Job ────────────────────────────────────────
       default:
         logger.warn(`Notification Worker: unknown job received: ${job.name}`);
     }
