@@ -781,3 +781,65 @@ Add API key and verified email to .env file
 - Emails sent **asynchronously** via BullMQ — API stays fast
 - If SendGrid is down — BullMQ **retries automatically** up to 3 times
 - All email events logged via **Winston**
+
+
+## Docker Module
+
+This project supports running the Smart Task API with Docker.
+
+### Features
+
+- Dockerized Node.js API
+- MongoDB container setup
+- Redis container setup
+- Multi-service run using Docker Compose
+- Environment-based Docker configuration
+
+### Files Added
+
+- `Dockerfile`
+- `docker-compose.yml`
+- `.dockerignore`
+- `.env.example`
+
+### Services
+
+The Docker setup includes:
+
+- `api`
+- `mongo`
+- `redis`
+
+### Environment Variables
+
+Create a `.env.docker` file in the root folder and add the required values.
+
+Example:
+
+```env
+NODE_ENV=production
+JWT_SECRET=your_jwt_secret
+MONGO_URI=your_mongodb_connection_string
+REDIS_URL=redis://redis:6379
+CACHE_TTL_SECONDS=60
+GEMINI_API_KEY=your_gemini_api_key
+BASE_URL=http://localhost:3000
+SENDGRID_API_KEY=your_sendgrid_api_key
+EMAIL_FROM=your_verified_email@example.com
+
+
+Run Docker
+docker compose up --build
+Ports
+API runs on 3000
+MongoDB runs on 27017
+Redis runs on 6379
+Notes
+.env.docker is used for Docker environment values
+.env.example is a sample env file
+.env.docker should not be committed
+Testing
+Tested by running:
+
+docker compose up --build
+and confirming that API, MongoDB, and Redis start successfully.
