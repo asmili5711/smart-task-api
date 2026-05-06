@@ -1,5 +1,14 @@
+# Dependencies
 node_modules/
-.env
 npm-debug.log*
+*.log
+
+# Environment variables
+.env
+.env.docker
+
+# Logs
 logs/
+
+# Docker
 *.log
