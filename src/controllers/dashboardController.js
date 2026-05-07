@@ -1,9 +1,21 @@
 const Task = require("../models/Task");
 const User = require("../models/User");
-const logger = require("../config/logger"); 
+const logger = require("../config/logger");
+const { redisClient } = require("../config/redis");
+const { cacheTtlSeconds } = require("../utils/cacheHelpers");
 
 exports.getDashboardStats = async (req, res) => {
   try {
+    const cacheKey = `dashboard:stats:${req.user.role}:${req.user.id}`;
+    const cached = await redisClient.get(cacheKey);
+
+    if (cached) {
+      logger.debug(`Dashboard cache hit: ${cacheKey}`);
+      return res.json(JSON.parse(cached));
+    }
+
+    logger.debug(`Dashboard cache miss: ${cacheKey}`);
+
     const [
       totalUsers,
       totalAdmins,
@@ -32,9 +44,7 @@ exports.getDashboardStats = async (req, res) => {
       Task.countDocuments({ priority: "high" }),
     ]);
 
-    logger.info(`Dashboard stats fetched | by: ${req.user.id} | role: ${req.user.role}`);
-
-    res.json({
+    const response = {
       users: {
         total: totalUsers,
         admins: totalAdmins,
@@ -53,7 +63,13 @@ exports.getDashboardStats = async (req, res) => {
         medium: mediumPriorityTasks,
         high: highPriorityTasks,
       },
-    });
+    };
+
+    await redisClient.setEx(cacheKey, cacheTtlSeconds, JSON.stringify(response));
+
+    logger.info(`Dashboard stats fetched | by: ${req.user.id} | role: ${req.user.role}`);
+
+    res.json(response);
   } catch (error) {
     logger.error(`Dashboard Stats Error [user:${req.user?.id}]: ${error.message}`);
     res.status(500).json({ message: "Server error" });

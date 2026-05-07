@@ -1,7 +1,8 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const mongoose = require("mongoose");
-const logger = require("../config/logger"); // ← added
+const logger = require("../config/logger");
+const { clearDashboardCache } = require("../utils/cacheHelpers");
 
 // ================= GET MY PROFILE =================
 exports.getMyProfile = async (req, res) => {
@@ -114,6 +115,7 @@ exports.deleteUser = async (req, res) => {
     }
 
     await User.findByIdAndDelete(userId);
+    await clearDashboardCache();
 
     logger.info(`User deleted: ${userId} | by admin: ${req.user.id}`);
     res.status(200).json({ message: "User deleted successfully" });
@@ -148,6 +150,7 @@ exports.createUser = async (req, res) => {
       password: hashedPassword,
       role: normalizedRole,
     });
+    await clearDashboardCache();
 
     logger.info(`User created: ${email} | role: ${normalizedRole} | by admin: ${req.user.id}`);
 

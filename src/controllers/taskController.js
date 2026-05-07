@@ -5,21 +5,11 @@ const { redisClient } = require("../config/redis");
 const { notificationQueue } = require("../queues/notificationQueue");
 const aiQueue = require("../queues/aiQueue");
 const logger = require("../config/logger");
-
-const cacheTtlSeconds = Number(process.env.CACHE_TTL_SECONDS) || 60;
-
-// ================= HELPER =================
-const clearTaskCache = async () => {
-  try {
-    const keys = await redisClient.keys("tasks:*");
-    if (keys.length > 0) {
-      await redisClient.del(keys);
-      logger.debug(`Task cache cleared - ${keys.length} keys removed`);
-    }
-  } catch (error) {
-    logger.error(`Cache clear error: ${error.message}`);
-  }
-};
+const {
+  cacheTtlSeconds,
+  clearTaskCache,
+  clearDashboardCache,
+} = require("../utils/cacheHelpers");
 
 // ================= CREATE TASK =================
 exports.createTask = async (req, res) => {
@@ -93,7 +83,7 @@ exports.createTask = async (req, res) => {
       logger.warn(`Failed to enqueue AI job for task ${task._id}: ${error.message}`);
     }
 
-    await clearTaskCache();
+    await Promise.all([clearTaskCache(), clearDashboardCache()]);
 
     const populatedTask = await Task.findById(task._id)
       .populate("assignedTo", "name email role")
@@ -256,7 +246,7 @@ exports.updateTask = async (req, res) => {
     }
 
     await task.save();
-    await clearTaskCache();
+    await Promise.all([clearTaskCache(), clearDashboardCache()]);
 
     logger.info(`Task updated: ${taskId} by user: ${req.user.id}`);
 
@@ -337,7 +327,7 @@ exports.assignTask = async (req, res) => {
       logger.warn(`Failed to enqueue notification job for assignTask ${id}: ${error.message}`);
     }
 
-    await clearTaskCache();
+    await Promise.all([clearTaskCache(), clearDashboardCache()]);
 
     res.json({ message: "Task assigned" });
   } catch (error) {
@@ -368,7 +358,7 @@ exports.deleteTask = async (req, res) => {
         task.createdBy.toString() === req.user.id.toString())
     ) {
       await Task.findByIdAndDelete(taskId);
-      await clearTaskCache();
+      await Promise.all([clearTaskCache(), clearDashboardCache()]);
       logger.info(`Task deleted: ${taskId} by user: ${req.user.id} | role: ${req.user.role}`);
       return res.json({ message: "Task deleted" });
     }
