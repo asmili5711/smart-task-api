@@ -50,9 +50,10 @@ The application currently uses these roles:
 2. The password is hashed before storing it in the database
 3. The user logs in with valid credentials
 4. The server verifies the credentials
-5. A JWT token is generated and returned
-6. The client sends the token in the `Authorization` header
-7. Middleware verifies the token before allowing access to protected routes
+5. Access and refresh tokens are generated and returned
+6. The client sends the access token in the `Authorization` header
+7. When the access token expires, the refresh token is used to get a new one
+8. Middleware verifies the access token before allowing access to protected routes
 
 ## Token Format
 
@@ -96,7 +97,30 @@ Response:
 ```json
 {
   "message": "Login successful",
-  "token": "JWT_TOKEN"
+  "accessToken": "JWT_ACCESS_TOKEN",
+  "refreshToken": "JWT_REFRESH_TOKEN"
+}
+```
+
+#### Refresh Access Token
+`POST /api/auth/refresh`
+
+Request body:
+
+```json
+{
+  "refreshToken": "JWT_REFRESH_TOKEN"
+}
+```
+
+#### Logout
+`POST /api/auth/logout`
+
+Request body:
+
+```json
+{
+  "refreshToken": "JWT_REFRESH_TOKEN"
 }
 ```
 
@@ -254,7 +278,6 @@ Tested manually using Postman for:
 
 Current limitations of this module:
 
-- No refresh token support
 - No password reset feature
 - No email verification
 - No rate limiting
@@ -312,7 +335,7 @@ This module adds task handling to the Smart Task API. It supports creating, view
 
 ### Redis Cache Setup
 
-Redis is used to cache the `GET /api/tasks` response so repeated task list requests can be served faster.
+Redis is used to cache task and dashboard responses so repeated requests can be served faster.
 
 Environment variables used:
 
@@ -341,6 +364,7 @@ How caching works:
 - if cache is missing or expired, the API fetches data from MongoDB
 - the fresh response is saved in Redis for the number of seconds set in `CACHE_TTL_SECONDS`
 - task cache is cleared after create, update, assign, and delete operations so old task data is not served
+- dashboard stats cache is cleared when tasks change and when admins create or delete users
 
 ### Testing
 
@@ -383,6 +407,12 @@ The dashboard stats response includes:
 - user counts by role
 - task counts by status: `todo`, `in-progress`, `done`, `overdue`
 - task counts by priority: `low`, `medium`, `high`
+
+### Cache
+
+- `GET /api/dashboard/stats` is cached in Redis
+- cached dashboard data is invalidated when task data changes
+- cached dashboard data is invalidated when admins create or delete users
 
 ### Testing
 
@@ -819,6 +849,9 @@ Example:
 ```env
 NODE_ENV=production
 JWT_SECRET=your_jwt_secret
+JWT_REFRESH_SECRET=your_refresh_token_secret
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_EXPIRES_IN=7d
 MONGO_URI=your_mongodb_connection_string
 REDIS_URL=redis://redis:6379
 CACHE_TTL_SECONDS=60
@@ -826,20 +859,70 @@ GEMINI_API_KEY=your_gemini_api_key
 BASE_URL=http://localhost:3000
 SENDGRID_API_KEY=your_sendgrid_api_key
 EMAIL_FROM=your_verified_email@example.com
+```
 
+### Run Docker
 
-Run Docker
+```bash
 docker compose up --build
-Ports
-API runs on 3000
-MongoDB runs on 27017
-Redis runs on 6379
-Notes
-.env.docker is used for Docker environment values
-.env.example is a sample env file
-.env.docker should not be committed
-Testing
+```
+
+### Ports
+
+- API runs on `3000`
+- MongoDB runs on `27017`
+- Redis runs on `6379`
+
+### Notes
+
+- `.env.docker` is used for Docker environment values
+- `.env.example` is a sample env file
+- `.env.docker` should not be committed
+
+### Testing
+
 Tested by running:
 
+```bash
 docker compose up --build
+```
+
 and confirming that API, MongoDB, and Redis start successfully.
+
+## Postman Collection
+
+This project includes Postman files for manual API testing.
+
+### Files
+
+- `postman/Smart-Task-API.postman_collection.json`
+- `postman/Smart-Task-API.postman_environment.json`
+
+### Covered Modules
+
+- Authentication
+- Users
+- Tasks
+- Dashboard
+- Notifications
+- LLM
+- QR
+
+## Architecture Diagram
+
+```text
+Postman / Client
+       |
+       v
+Express API
+       |
+       +--> MongoDB
+       |
+       +--> Redis
+       |      |
+       |      +--> BullMQ Queues / Workers
+       |
+       +--> Google Gemini API
+       |
+       +--> SendGrid
+```
