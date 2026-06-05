@@ -1,10 +1,8 @@
 const cron = require("node-cron");
 const fs = require("fs");
 const path = require("path");
-const { overdueQueue } = require("../queues/overdueQueue");
-const { notificationQueue } = require("../queues/notificationQueue");
-const aiQueue = require("../queues/aiQueue");
-const logger = require("../config/logger"); // ← added
+const { overdueQueue, notificationQueue, aiQueue } = require("../config/queue");
+const logger = require("../config/logger");// ← added
 
 // ================= OVERDUE JOB → Every Hour =================
 cron.schedule("0 * * * *", async () => {
