@@ -5,12 +5,7 @@ var morgan = require('morgan');
 const logger = require("./src/config/logger");
 require('dotenv').config();
 require('./src/config/db');
-const { connectRedis } = require("./src/config/redis");
-connectRedis();
-require("./src/workers/notificationWorker");
-require("./src/workers/aiWorkers");
-require("./src/workers/overdueWorker");
-require("./src/cron/cronJobs");
+require('./src/config/queue');
 const notificationRoutes = require("./src/routes/notificationRoutes");
 const llmRoutes = require("./src/routes/llmRoutes");
 
